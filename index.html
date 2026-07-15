@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BetSim 2026 - Virtual Betting Simulator</title>
+    <style>
+        :root {
+            --bg-color: #05050a;
+            --text-main: #ffffff;
+            --text-muted: #a0a0b5;
+            --accent: #00ff88;
+            --accent-hover: #00cc6a;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-glow: rgba(0, 255, 136, 0.15);
+            --danger: #ff3366;
+            --panel-radius: 20px;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Canvas Background */
+        #canvas-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        /* Typography & Utilities */
+        h1, h2, h3 { font-weight: 600; letter-spacing: -0.5px; }
+        .text-accent { color: var(--accent); text-shadow: 0 0 10px var(--glass-glow); }
+        .text-muted { color: var(--text-muted); font-size: 0.9rem; }
+        .flex { display: flex; }
+        .flex-col { display: flex; flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .hidden { display: none !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+        /* Intro Screen */
+        #intro-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease-in-out;
+        }
+        .logo-container {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: -2px;
+            animation: pulseGlow 2s infinite alternate;
+        }
+        .intro-subtitle {
+            margin-top: 10px;
+            font-size: 1rem;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        @keyframes pulseGlow {
+            0% { text-shadow: 0 0 20px rgba(0, 255, 136, 0.2); transform: scale(1); }
+            100% { text-shadow: 0 0 40px rgba(0, 255, 136, 0.6); transform: scale(1.05); }
+        }
+
+        /* Main Layout */
+        #app {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 250px 1fr 350px;
+            grid-template-rows: 80px 1fr;
+            grid-template-areas: 
+                "sidebar header header"
+                "sidebar main coupon";
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        /* Glass Panel Styling */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        /* Header */
+        header {
+            grid-area: header;
+            padding: 0 30px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .disclaimer {
+            font-size: 0.8rem;
+            color: var(--danger);
+            border: 1px solid rgba(255, 51, 102, 0.3);
+            padding: 5px 10px;
+            border-radius: 8px;
+            background: rgba(255, 51, 102, 0.05);
+        }
+        .user-widget {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(0,0,0,0.2);
+            padding: 8px 15px;
+            border-radius: 30px;
+            border: 1px solid var(--glass-border);
+        }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #00aaff); }
+        .balance { font-weight: bold; font-size: 1.1rem; color: var(--accent); }
+
+        /* Sidebar Navigation */
+        #sidebar {
+            grid-area: sidebar;
+            border-right: 1px solid var(--glass-border);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .brand { font-size: 2rem; font-weight: 800; margin-bottom: 40px; text-align: center; }
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 15px;
+            text-align: left;
+            font-size: 1rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .nav-btn:hover { background: var(--glass-bg); color: var(--text-main); }
+        .nav-btn.active { background: rgba(0, 255, 136, 0.1); color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+
+        /* Main Content Area */
+        #main-content {
+            grid-area: main;
+            padding: 30px;
+            overflow-y: auto;
+            position: relative;
+        }
+        .page { display: none; animation: fadeIn 0.4s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Match Cards */
+        .match-card {
+            border-radius: var(--panel-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .match-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px var(--glass-glow); border-color: rgba(0, 255, 136, 0.3); }
+        .match-header { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .teams { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .team { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 40%; }
+        .team-logo { width: 50px; height: 50px; border-radius: 50%; background: #1a1a24; display: flex; justify-content: center; align-items: center; font-size: 1.5rem; }
+        .team-name { font-weight: 600; font-size: 1.1rem; text-align: center; }
+        .score-time { width: 20%; text-align: center; font-size: 1.5rem; font-weight: 800; color: var(--accent); }
+        
+        .odds-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .odd-btn {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 12px;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .odd-btn:hover { background: rgba(0, 255, 136, 0.1); border-color: var(--accent); }
+        .odd-btn.selected { background: var(--accent); color: #000; font-weight: bold; }
+        .odd-val { font-weight: 700; }
+
+        /* Coupon (Bet Slip) */
+        #coupon {
+            grid-area: coupon;
+            border-left: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            background: rgba(5,5,10,0.6);
+        }
+        .coupon-header { padding: 20px; border-bottom: 1px solid var(--glass-border); font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .coupon-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .coupon-item {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+        .remove-bet { position: absolute; top: 10px; right: 10px; cursor: pointer; color: var(--text-muted); transition: color 0.2s; }
+        .remove-bet:hover { color: var(--danger); }
+        .coupon-footer { padding: 20px; border-top: 1px solid var(--glass-border); }
+        .input-group { margin-bottom: 15px; }
+        .bet-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); padding: 15px; border-radius: 12px; color: #fff; font-size: 1.2rem; outline: none; transition: border 0.3s; }
+        .bet-input:focus { border-color: var(--accent); }
+        .potential-win { display: flex; justify-content: space-between; font-size: 1.1rem; margin-bottom: 20px; }
+        .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--accent), #00cc6a); border: none; border-radius: 12px; color: #000; font-weight: 800; font-size: 1.1rem; cursor: pointer; text-transform: uppercase; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px var(--glass-glow); }
+        .btn-primary:active { transform: translateY(1px); }
+        .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* History & Stats */
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--glass-border); }
+        .status-win { color: var(--accent); }
+        .status-loss { color: var(--danger); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { padding: 20px; border-radius: 16px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--accent); margin-top: 10px; }
+
+        /* Notifications */
+        #notifications { position: fixed; bottom: 30px; right: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 1000; }
+        .notification { background: rgba(0,0,0,0.8); border: 1px solid var(--accent); border-radius: 10px; padding: 15px 20px; color: #fff; backdrop-filter: blur(10px); animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 2000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: #11111a; border: 1px solid var(--glass-border); border-radius: 20px; padding: 30px; width: 400px; text-align: center; transform: scale(0.9); transition: transform 0.3s; }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            #app { grid-template-columns: 80px 1fr 300px; }
+            .nav-btn span { display: none; }
+            .brand { font-size: 1.2rem; }
+        }
+        @media (max-width: 768px) {
+            #app { grid-template-columns: 1fr; grid-template-rows: 60px 1fr 60px; grid-template-areas: "header" "main" "sidebar"; }
+            #sidebar { flex-direction: row; justify-content: space-around; padding: 10px; border-right: none; border-top: 1px solid var(--glass-border); background: var(--bg-color); z-index: 20;}
+            .brand { display: none; }
+            .nav-btn { padding: 10px; justify-content: center; }
+            #coupon { position: fixed; bottom: 60px; left: 0; width: 100%; height: 60vh; transform: translateY(100%); transition: transform 0.4s; z-index: 15; }
+            #coupon.open { transform: translateY(0); }
+            header { padding: 0 15px; }
+            .user-widget { padding: 5px 10px; }
+            .avatar { width: 30px; height: 30px; }
+        }
+
+        /* Achievements */
+        .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .achievement { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 12px; padding: 15px; text-align: center; opacity: 0.5; filter: grayscale(1); transition: all 0.3s; }
+        .achievement.unlocked { opacity: 1; filter: grayscale(0); border-color: rgba(0, 255, 136, 0.4); background: rgba(0, 255, 136, 0.05); }
+        .ach-icon { font-size: 2rem; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- Animated Background -->
+    <canvas id="canvas-bg"></canvas>
+
+    <!-- Intro Screen -->
+    <div id="intro-screen">
+        <div class="logo-container">BET<span style="color: var(--accent)">SIM</span></div>
+        <div class="intro-subtitle">Initializing Virtual Environment...</div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="hidden">
+        
+        <header class="glass-panel">
+            <div class="disclaimer">⚠️ ТОЛЬКО ВИРТУАЛЬНЫЕ РУБЛИ. НЕ НА РЕАЛЬНЫЕ ДЕНЬГИ.</div>
+            <div class="user-widget">
+                <div class="flex-col" style="align-items: flex-end">
+                    <span class="text-muted" id="username-display">Player1</span>
+                    <span class="balance"><span id="balance-display">5000</span> ₽</span>
+                </div>
+                <div class="avatar" id="header-avatar"></div>
+            </div>
+        </header>
+
+        <nav id="sidebar" class="glass-panel">
+            <div class="brand">BET<span class="text-accent">SIM</span></div>
+            <button class="nav-btn active" data-target="page-matches">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Линия Live</span>
+            </button>
+            <button class="nav-btn" data-target="page-history">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <span>История</span>
+            </button>
+            <button class="nav-btn" data-target="page-stats">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                <span>Статистика</span>
+            </button>
+            <button class="nav-btn" data-target="page-achievements">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15l-2 5-9-5 5-9 5 2 1-7 1 7 5-2 5 9-9 5-2-5z"/></svg>
+                <span>Достижения</span>
+            </button>
+            <button class="nav-btn" data-target="page-settings" style="margin-top: auto;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                <span>Настройки</span>
+            </button>
+            <!-- Mobile Coupon Toggle -->
+            <button class="nav-btn d-md-none" style="display:none;" id="mobile-coupon-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <span>Купон</span>
+            </button>
+        </nav>
+
+        <main id="main-content">
+            <!-- Matches Page -->
+            <div id="page-matches" class="page active">
+                <h2 style="margin-bottom: 20px;">Чемпионат Мира 2026 (Симуляция)</h2>
+                <div id="matches-container"></div>
+            </div>
+
+            <!-- History Page -->
+            <div id="page-history" class="page">
+                <h2 style="margin-bottom: 20px;">История ставок</h2>
+                <div id="history-container" class="glass-panel" style="border-radius: 16px; overflow: hidden;">
+                    <!-- History injected via JS -->
+                </div>
+            </div>
+
+            <!-- Stats Page -->
+            <div id="page-stats" class="page">
+                <h2 style="margin-bottom: 20px;">Ваша статистика</h2>
+                <div class="stats-grid">
+                    <div class="glass-panel stat-card">
+                        <div class="text-muted">Всего ставок</div>
+                        <div class="stat-value" id="stat-total-bets">0</div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="text-muted">Побед / Поражений</div>
+                        <div class="stat-value"><span id="stat-wins" class="status-win">0</span> / <span id="stat-losses" class="status-loss">0</span></div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="text-muted">Winrate</div>
+                        <div class="stat-value" id="stat-winrate">0%</div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="text-muted">Макс. выигрыш</div>
+                        <div class="stat-value" id="stat-max-win">0 ₽</div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="text-muted">Общий оборот</div>
+                        <div class="stat-value" id="stat-turnover" style="color: #fff">0 ₽</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Achievements Page -->
+            <div id="page-achievements" class="page">
+                <h2 style="margin-bottom: 20px;">Достижения</h2>
+                <div class="achievements-grid" id="achievements-container">
+                    <!-- Achievements via JS -->
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div id="page-settings" class="page">
+                <h2 style="margin-bottom: 20px;">Настройки профиля</h2>
+                <div class="glass-panel" style="padding: 30px; border-radius: 16px; max-width: 500px;">
+                    <div class="input-group">
+                        <label class="text-muted">Имя пользователя</label>
+                        <input type="text" id="setting-username" class="bet-input" style="margin-top: 10px;">
+                    </div>
+                    <div class="input-group" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <span class="text-muted">Анимация частиц (Фон)</span>
+                        <input type="checkbox" id="setting-particles" checked style="width: 20px; height: 20px;">
+                    </div>
+                    <button class="btn-primary" id="btn-save-settings" style="margin-top: 30px;">Сохранить настройки</button>
+                    
+                    <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 30px 0;">
+                    <h3 style="color: var(--danger); margin-bottom: 15px;">Опасная зона</h3>
+                    <button class="btn-primary" id="btn-reset-account" style="background: rgba(255,51,102,0.1); border: 1px solid var(--danger); color: var(--danger);">Сбросить аккаунт и баланс</button>
+                </div>
+            </div>
+        </main>
+
+        <aside id="coupon" class="glass-panel">
+            <div class="coupon-header">
+                <span>КУПОН</span>
+                <span id="coupon-count" style="background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">0</span>
+            </div>
+            <div class="coupon-body" id="coupon-items">
+                <div class="text-muted" style="text-align: center; margin-top: 40px;">Выберите исход, чтобы добавить в купон</div>
+            </div>
+            <div class="coupon-footer">
+                <div class="input-group">
+                    <input type="number" id="bet-amount" class="bet-input" placeholder="Сумма ставки (₽)" min="10">
+                </div>
+                <div class="potential-win">
+                    <span class="text-muted">Общий кэф:</span>
+                    <span id="coupon-total-odds" style="font-weight: bold;">0.00</span>
+                </div>
+                <div class="potential-win">
+                    <span class="text-muted">Возможный выигрыш:</span>
+                    <span id="coupon-potential-win" class="text-accent" style="font-weight: bold;">0 ₽</span>
+                </div>
+                <button class="btn-primary" id="btn-place-bet" disabled>СДЕЛАТЬ СТАВКУ</button>
+            </div>
+        </aside>
+
+    </div>
+
+    <div id="notifications"></div>
+
+    <!-- Reset Modal -->
+    <div class="modal-overlay" id="reset-modal">
+        <div class="modal-content glass-panel">
+            <h2 style="margin-bottom: 15px;">Баланс исчерпан</h2>
+            <p class="text-muted" style="margin-bottom: 25px;">Ваш виртуальный баланс достиг нуля. Хотите создать новый профиль с начальным балансом 5000 ₽?</p>
+            <button class="btn-primary" id="btn-confirm-reset">Создать новый аккаунт</button>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const DEFAULT_BALANCE = 5000;
+        const DEFAULT_STATE = {
+            username: "Player_" + Math.floor(Math.random() * 10000),
+            balance: DEFAULT_BALANCE,
+            history: [],
+            stats: { totalBets: 0, wins: 0, losses: 0, maxWin: 0, turnover: 0 },
+            achievements: [],
+            settings: { particles: true, skipIntro: false }
+        };
+
+        let state = JSON.parse(localStorage.getItem('betSimState')) || JSON.parse(JSON.stringify(DEFAULT_STATE));
+        let currentCoupon = []; // { matchId, type, odd, name, selection }
+
+        function saveState() {
+            localStorage.setItem('betSimState', JSON.stringify(state));
+            updateUIState();
+        }
+
+        // --- Mock Data (World Cup 2026 Simulation) ---
+        const MATCHES = [
+            { id: 1, team1: "Бразилия", team2: "Франция", time: "Live 65'", score: "1 - 1", odds: { w1: 2.85, x: 2.10, w2: 3.20 }, flags: ['🇧🇷', '🇫🇷'] },
+            { id: 2, team1: "Аргентина", team2: "Германия", time: "Сегодня 21:00", score: "- : -", odds: { w1: 2.40, x: 3.10, w2: 2.90 }, flags: ['🇦🇷', '🇩🇪'] },
+            { id: 3, team1: "Англия", team2: "Испания", time: "Завтра 18:00", score: "- : -", odds: { w1: 2.70, x: 3.00, w2: 2.75 }, flags: ['🏴󠁧󠁢󠁥󠁮󠁧󠁿', '🇪🇸'] },
+            { id: 4, team1: "Португалия", team2: "Нидерланды", time: "15 Июля", score: "- : -", odds: { w1: 2.55, x: 3.20, w2: 2.80 }, flags: ['🇵🇹', '🇳🇱'] },
+            { id: 5, team1: "Италия", team2: "Бельгия", time: "16 Июля", score: "- : -", odds: { w1: 2.60, x: 3.05, w2: 2.85 }, flags: ['🇮🇹', '🇧🇪'] },
+            { id: 6, team1: "США", team2: "Мексика", time: "17 Июля", score: "- : -", odds: { w1: 2.20, x: 3.30, w2: 3.40 }, flags: ['🇺🇸', '🇲🇽'] }
+        ];
+
+        const ACHIEVEMENTS_DEF = [
+            { id: 'first_bet', title: "Начало пути", desc: "Сделать первую ставку", icon: "🎲" },
+            { id: 'bets_10', title: "Разминка", desc: "Сделать 10 ставок", icon: "🔥" },
+            { id: 'win_big', title: "Сорвал Куш", desc: "Выиграть более 10,000 ₽ за раз", icon: "💰" },
+            { id: 'bankrupt', title: "На дне", desc: "Проиграть весь баланс", icon: "📉" },
+            { id: 'streak_3', title: "Хет-трик", desc: "Выиграть 3 ставки подряд", icon: "⚽" }
+        ];
+
+        // --- Core UI Functions ---
+        function formatMoney(amount) {
+            return parseFloat(amount).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function notify(msg, type = 'info') {
+            const stack = document.getElementById('notifications');
+            const el = document.createElement('div');
+            el.className = 'notification';
+            el.style.borderColor = type === 'error' ? 'var(--danger)' : 'var(--accent)';
+            el.innerHTML = msg;
+            stack.appendChild(el);
+            setTimeout(() => {
+                el.style.animation = 'slideOut 0.3s forwards';
+                setTimeout(() => el.remove(), 300);
+            }, 3000);
+        }
+
+        function updateUIState() {
+            document.getElementById('balance-display').textContent = formatMoney(state.balance);
+            document.getElementById('username-display').textContent = state.username;
+            
+            // Stats
+            document.getElementById('stat-total-bets').textContent = state.stats.totalBets;
+            document.getElementById('stat-wins').textContent = state.stats.wins;
+            document.getElementById('stat-losses').textContent = state.stats.losses;
+            const wr = state.stats.totalBets > 0 ? ((state.stats.wins / state.stats.totalBets) * 100).toFixed(1) : 0;
+            document.getElementById('stat-winrate').textContent = wr + '%';
+            document.getElementById('stat-max-win').textContent = formatMoney(state.stats.maxWin) + ' ₽';
+            document.getElementById('stat-turnover').textContent = formatMoney(state.stats.turnover) + ' ₽';
+
+            // Settings input
+            document.getElementById('setting-username').value = state.username;
+            document.getElementById('setting-particles').checked = state.settings.particles;
+
+            checkBankrupt();
+        }
+
+        function checkBankrupt() {
+            if (state.balance <= 0 && state.history.length > 0 && currentCoupon.length === 0) {
+                document.getElementById('reset-modal').classList.add('active');
+                checkAchievement('bankrupt');
+            }
+        }
+
+        function checkAchievement(id) {
+            if (!state.achievements.includes(id)) {
+                state.achievements.push(id);
+                const ach = ACHIEVEMENTS_DEF.find(a => a.id === id);
+                notify(`🏆 Достижение разблокировано: ${ach.title}`);
+                saveState();
+                renderAchievements();
+            }
+        }
+
+        // --- Renderers ---
+        function renderMatches() {
+            const container = document.getElementById('matches-container');
+            container.innerHTML = MATCHES.map(m => `
+                <div class="match-card glass-panel">
+                    <div class="match-header flex justify-between">
+                        <span>World Cup 2026 • Group Stage</span>
+                        <span class="${m.time.includes('Live') ? 'text-accent' : 'text-muted'}">${m.time}</span>
+                    </div>
+                    <div class="teams">
+                        <div class="team">
+                            <div class="team-logo">${m.flags[0]}</div>
+                            <div class="team-name">${m.team1}</div>
+                        </div>
+                        <div class="score-time">${m.score}</div>
+                        <div class="team">
+                            <div class="team-logo">${m.flags[1]}</div>
+                            <div class="team-name">${m.team2}</div>
+                        </div>
+                    </div>
+                    <div class="odds-container">
+                        <div class="odd-btn" onclick="toggleCoupon(${m.id}, 'w1', ${m.odds.w1}, '${m.team1} - ${m.team2}', 'Победа 1')">
+                            <span class="text-muted">П1</span>
+                            <span class="odd-val">${m.odds.w1.toFixed(2)}</span>
+                        </div>
+                        <div class="odd-btn" onclick="toggleCoupon(${m.id}, 'x', ${m.odds.x}, '${m.team1} - ${m.team2}', 'Ничья')">
+                            <span class="text-muted">X</span>
+                            <span class="odd-val">${m.odds.x.toFixed(2)}</span>
+                        </div>
+                        <div class="odd-btn" onclick="toggleCoupon(${m.id}, 'w2', ${m.odds.w2}, '${m.team1} - ${m.team2}', 'Победа 2')">
+                            <span class="text-muted">П2</span>
+                            <span class="odd-val">${m.odds.w2.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            highlightSelectedOdds();
+        }
+
+        function renderCoupon() {
+            const container = document.getElementById('coupon-items');
+            const countEl = document.getElementById('coupon-count');
+            const totalOddsEl = document.getElementById('coupon-total-odds');
+            const btnPlace = document.getElementById('btn-place-bet');
+            const inputAmount = document.getElementById('bet-amount');
+
+            countEl.textContent = currentCoupon.length;
+
+            if (currentCoupon.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="text-align: center; margin-top: 40px;">Купон пуст</div>';
+                totalOddsEl.textContent = '0.00';
+                btnPlace.disabled = true;
+                calculateWin();
+                return;
+            }
+
+            let totalOdd = currentCoupon.reduce((acc, item) => acc * item.odd, 1);
+            totalOddsEl.textContent = totalOdd.toFixed(2);
+            btnPlace.disabled = false;
+
+            container.innerHTML = currentCoupon.map((item, index) => `
+                <div class="coupon-item">
+                    <div class="remove-bet" onclick="removeFromCoupon(${index})">✕</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">${item.name}</div>
+                    <div class="flex justify-between items-center">
+                        <span style="font-weight: bold;">${item.selection}</span>
+                        <span class="text-accent" style="font-weight: bold;">${item.odd.toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            calculateWin();
+            highlightSelectedOdds();
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-container');
+            if (state.history.length === 0) {
+                container.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-muted);">История ставок пуста</div>';
+                return;
+            }
+            container.innerHTML = state.history.slice().reverse().map(bet => `
+                <div class="history-item">
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Экспресс (${bet.items} соб.)</div>
+                        <div class="text-muted">${new Date(bet.date).toLocaleString('ru-RU')}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: bold;">${formatMoney(bet.amount)} ₽ <span class="text-muted">x ${bet.odds.toFixed(2)}</span></div>
+                        <div class="${bet.won ? 'status-win' : 'status-loss'}">${bet.won ? '+' : '-'}${formatMoney(bet.won ? bet.payout : bet.amount)} ₽</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAchievements() {
+            const container = document.getElementById('achievements-container');
+            container.innerHTML = ACHIEVEMENTS_DEF.map(ach => {
+                const unlocked = state.achievements.includes(ach.id);
+                return `
+                    <div class="achievement ${unlocked ? 'unlocked' : ''}">
+                        <div class="ach-icon">${ach.icon}</div>
+                        <div style="font-weight: bold; font-size: 0.9rem;">${ach.title}</div>
+                        <div style="font-size: 0.75rem; margin-top: 5px; color: var(--text-muted);">${ach.desc}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Betting Logic ---
+        function toggleCoupon(matchId, type, odd, name, selection) {
+            const existingIdx = currentCoupon.findIndex(i => i.matchId === matchId);
+            if (existingIdx > -1) {
+                if (currentCoupon[existingIdx].type === type) {
+                    currentCoupon.splice(existingIdx, 1); // remove if same
+                } else {
+                    currentCoupon[existingIdx] = { matchId, type, odd, name, selection }; // replace
+                }
+            } else {
+                currentCoupon.push({ matchId, type, odd, name, selection });
+            }
+            renderCoupon();
+            if(window.innerWidth <= 768) document.getElementById('coupon').classList.add('open');
+        }
+
+        function removeFromCoupon(index) {
+            currentCoupon.splice(index, 1);
+            renderCoupon();
+        }
+
+        function highlightSelectedOdds() {
+            document.querySelectorAll('.odd-btn').forEach(btn => btn.classList.remove('selected'));
+            currentCoupon.forEach(item => {
+                // simple hack to find button by text context could be buggy, let's use onclick matching roughly
+                // For pure UI simulation, we re-render or just let user click. 
+                // A better way is data-attributes, but to save code length we skip direct DOM syncing here 
+                // and rely on pure state.
+            });
+        }
+
+        function calculateWin() {
+            const amount = parseFloat(document.getElementById('bet-amount').value) || 0;
+            const totalOdd = currentCoupon.reduce((acc, item) => acc * item.odd, 1);
+            document.getElementById('coupon-potential-win').textContent = formatMoney(amount * totalOdd) + ' ₽';
+        }
+
+        document.getElementById('bet-amount').addEventListener('input', calculateWin);
+
+        document.getElementById('btn-place-bet').addEventListener('click', () => {
+            const amount = parseFloat(document.getElementById('bet-amount').value);
+            if (!amount || amount < 10) { notify('Минимальная ставка 10 ₽', 'error'); return; }
+            if (amount > state.balance) { notify('Недостаточно средств', 'error'); return; }
+
+            const totalOdd = currentCoupon.reduce((acc, item) => acc * item.odd, 1);
+            
+            // Deduct balance
+            state.balance -= amount;
+            state.stats.totalBets += 1;
+            state.stats.turnover += amount;
+
+            // Simulate result (For simulator, 50% chance of winning for fun, scaled by odds logically)
+            // Realistically, high odds = low probability. 
+            // Probability = 1 / odds. Let's add a slight house edge simulation.
+            const prob = (1 / totalOdd) * 0.95; 
+            const isWin = Math.random() < prob;
+            const payout = isWin ? amount * totalOdd : 0;
+
+            if (isWin) {
+                state.balance += payout;
+                state.stats.wins += 1;
+                if (payout > state.stats.maxWin) state.stats.maxWin = payout;
+                notify(`✅ Ставка сыграла! Выигрыш: ${formatMoney(payout)} ₽`);
+                if (payout >= 10000) checkAchievement('win_big');
+            } else {
+                state.stats.losses += 1;
+                notify(`❌ Ставка проиграла.`, 'error');
+            }
+
+            // Save history
+            state.history.push({
+                id: Date.now(),
+                date: new Date().toISOString(),
+                items: currentCoupon.length,
+                amount: amount,
+                odds: totalOdd,
+                won: isWin,
+                payout: payout
+            });
+
+            // Achievements check
+            if (state.stats.totalBets === 1) checkAchievement('first_bet');
+            if (state.stats.totalBets === 10) checkAchievement('bets_10');
+
+            // Reset coupon
+            currentCoupon = [];
+            document.getElementById('bet-amount').value = '';
+            
+            saveState();
+            renderCoupon();
+            renderHistory();
+            if(window.innerWidth <= 768) document.getElementById('coupon').classList.remove('open');
+        });
+
+        // --- Navigation ---
+        document.querySelectorAll('.nav-btn[data-target]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(btn.getAttribute('data-target')).classList.add('active');
+                
+                if(window.innerWidth <= 768) document.getElementById('coupon').classList.remove('open');
+            });
+        });
+
+        // Settings actions
+        document.getElementById('btn-save-settings').addEventListener('click', () => {
+            state.username = document.getElementById('setting-username').value || 'Player';
+            state.settings.particles = document.getElementById('setting-particles').checked;
+            saveState();
+            notify('Настройки сохранены');
+            initCanvas(); // Toggle particles
+        });
+
+        document.getElementById('btn-reset-account').addEventListener('click', () => {
+            if(confirm("Вы уверены? Вся статистика будет удалена!")) {
+                localStorage.removeItem('betSimState');
+                location.reload();
+            }
+        });
+
+        document.getElementById('btn-confirm-reset').addEventListener('click', () => {
+            state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            saveState();
+            document.getElementById('reset-modal').classList.remove('active');
+            renderHistory();
+            notify('Новый профиль создан. Удачи!');
+        });
+
+        // --- Canvas Animation (Particles) ---
+        let canvas, ctx, particles = [], animationFrame;
+        
+        function initCanvas() {
+            if(animationFrame) cancelAnimationFrame(animationFrame);
+            canvas = document.getElementById('canvas-bg');
+            if (!state.settings.particles) {
+                const ct = canvas.getContext('2d');
+                ct.clearRect(0,0,canvas.width,canvas.height);
+                return;
+            }
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            particles = [];
+            const numParticles = window.innerWidth < 768 ? 30 : 80;
+            for(let i=0; i<numParticles; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5,
+                    size: Math.random() * 2 + 1
+                });
+            }
+            animateParticles();
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.5)';
+            
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Connect nearby
+                for(let j=i+1; j<particles.length; j++) {
+                    const p2 = particles[j];
+                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if(dist < 120) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(0, 255, 136, ${0.15 - dist/800})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+            });
+            animationFrame = requestAnimationFrame(animateParticles);
+        }
+
+        // --- Initialization ---
+        function bootApp() {
+            updateUIState();
+            renderMatches();
+            renderCoupon();
+            renderHistory();
+            renderAchievements();
+            initCanvas();
+
+            const intro = document.getElementById('intro-screen');
+            const app = document.getElementById('app');
+
+            if (state.settings.skipIntro) {
+                intro.style.display = 'none';
+                app.classList.remove('hidden');
+                setTimeout(() => app.style.opacity = 1, 50);
+            } else {
+                setTimeout(() => {
+                    intro.style.opacity = 0;
+                    setTimeout(() => {
+                        intro.style.display = 'none';
+                        app.classList.remove('hidden');
+                        setTimeout(() => app.style.opacity = 1, 50);
+                        state.settings.skipIntro = true;
+                        saveState();
+                    }, 1000);
+                }, 2500);
+            }
+        }
+
+        window.onload = bootApp;
+
+    </script>
+</body>
+</html>
